@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>值班日历</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .header {
+            margin-top: 15px;
+            display: flex;
+            align-items: center;
+        }
+        .month-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 10px;
+            width: 100%;
+        }
+        .month-title {
+            font-size: 18px;
+            font-weight: bold;
+            min-width: 120px;
+            text-align: center;
+            color: #ff0000;
+        }
+        .calendar-container {
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #fff;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+        }
+        .weekdays {
+            display: flex;
+            margin-bottom: 5px;
+        }
+        .weekday {
+            flex: 1;
+            text-align: center;
+            font-size: 12px;
+            font-weight: bolder;
+        }
+        .days {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        .day {
+            width: 14.28%;
+            aspect-ratio: 0.8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 2px;
+            box-sizing: border-box;
+            border: 1px solid transparent;
+            background-color: #fff;
+        }
+        .day.current-month {
+            background-color: #fff;
+        }
+        .day.other-month {
+            color: #ccc;
+        }
+        .day.selected {
+            background-color: #e6f7ff;
+            border: 1px solid #1890ff;
+        }
+        .day-number {
+            font-size: 12px;
+            margin-bottom: 2px;
+        }
+        .staff-name {
+            font-size: 12px;
+            color: #1890ff;
+            background-color: #e6f7ff;
+            padding: 1px 4px;
+            border-radius: 50px;
+            margin-top: 2px;
+            width: 90%;
+            text-align: center;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .notes-panel {
+            background-color: #fff;
+            border-radius: 5px;
+            padding: 10px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+        }
+        .notes-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 7px;
+        }
+        .notes-date {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .notes-staff {
+            font-size: 14px;
+            color: #1890ff;
+        }
+        .notice-title {
+            color: red;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .notice-content {
+            font-size: 14px;
+            padding: 5px;
+            border: 1px solid #eee;
+            border-radius: 3px;
+            min-height: 40px;
+        }
+        .nav-button {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: #1890ff;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 标题和月份 -->
+        <div class="header">
+            <div class="month-control">
+                <button class="nav-button" onclick="changeMonth(-1)">‹</button>
+                <span class="month-title" id="monthTitle">加载中...</span>
+                <button class="nav-button" onclick="changeMonth(1)">›</button>
+            </div>
+        </div>
+
+        <!-- 日历部分 -->
+        <div class="calendar-container">
+            <div class="weekdays">
+                <div class="weekday">日</div>
+                <div class="weekday">一</div>
+                <div class="weekday">二</div>
+                <div class="weekday">三</div>
+                <div class="weekday">四</div>
+                <div class="weekday">五</div>
+                <div class="weekday">六</div>
+            </div>
+            <div class="days" id="calendarDays">
+                <div class="loading">正在加载排班数据...</div>
+            </div>
+        </div>
+
+        <!-- 注意事项展示面板 -->
+        <div class="notes-panel" id="notesPanel" style="display: none;">
+            <div class="notes-header">
+                <span class="notes-date" id="notesDate"></span>
+                <span class="notes-staff" id="notesStaff"></span>
+            </div>
+            <div class="notice-title">注意事项</div>
+            <div class="notice-content" id="noticeContent">暂无注意事项</div>
+        </div>
+    </div>
+
+    <script>
+        // 初始数据
+        const today = new Date();
+        let currentYear = today.getFullYear();
+        let currentMonth = today.getMonth() + 1;
+        let selectedDate = null;
+
+        // 排班信息 - 使用你提供的默认数据
+        const defaultScheduleData = [
+            {
+                "id": 111,
+                "date": "2025-03-31T16:00:00.000Z",
+                "user_id": 4,
+                "user_nickname": "赵六",
+                "notes": "666",
+                "version": "1.0.5"
+            },
+            {
+                "id": 112,
+                "date": "2025-04-02T16:00:00.000Z",
+                "user_id": 1,
+                "user_nickname": "张三",
+                "notes": "234",
+                "version": "1.0.5"
+            },
+            {
+                "id": 113,
+                "date": "2025-04-14T16:00:00.000Z",
+                "user_id": 3,
+                "user_nickname": "王五",
+                "notes": "",
+                "version": "1.0.5"
+            },
+            {
+                "id": 114,
+                "date": "2025-04-15T16:00:00.000Z",
+                "user_id": 5,
+                "user_nickname": "钱七",
+                "notes": "",
+                "version": "1.0.5"
+            }
+        ];
+
+        // 初始化页面
+        document.addEventListener('DOMContentLoaded', function() {
+            // 直接使用默认数据初始化
+            const processedData = processScheduleData(defaultScheduleData);
+            initScheduleData(processedData);
+            updateCalendar();
+        });
+
+        // 处理排班数据
+        function processScheduleData(data) {
+            const dateMap = {};
+            data.forEach(item => {
+                const dateObj = new Date(item.date);
+                const dateStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+                
+                if (!dateMap[dateStr] || compareVersions(item.version, dateMap[dateStr].version) > 0) {
+                    dateMap[dateStr] = {
+                        ...item,
+                        date: dateStr
+                    };
+                }
+            });
+            return Object.values(dateMap);
+        }
+
+        // 版本号比较函数
+        function compareVersions(v1, v2) {
+            const parts1 = v1.split('.').map(Number);
+            const parts2 = v2.split('.').map(Number);
+            for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+                const num1 = parts1[i] || 0;
+                const num2 = parts2[i] || 0;
+                if (num1 > num2) return 1;
+                if (num1 < num2) return -1;
+            }
+            return 0;
+        }
+
+        // 初始化排班数据
+        function initScheduleData(schedules) {
+            window.scheduleData = {};
+            schedules.forEach(function(item) {
+                const dateStr = item.date; // 使用已经格式化好的日期字符串
+                window.scheduleData[dateStr] = {
+                    staff: item.user_nickname,
+                    notes: item.notes || ''
+                };
+            });
+        }
+
+        // 更新日历显示
+        function updateCalendar() {
+            document.getElementById('monthTitle').textContent = `${currentYear}年${currentMonth}月`;
+            
+            const year = currentYear;
+            const month = currentMonth;
+            const firstDay = new Date(year, month - 1, 1);
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const firstDayOfWeek = firstDay.getDay();
+
+            const daysContainer = document.getElementById('calendarDays');
+            daysContainer.innerHTML = '';
+
+            // 添加上个月的最后几天
+            const prevMonthDays = firstDayOfWeek;
+            const prevMonth = new Date(year, month - 1, 0);
+            const daysInPrevMonth = prevMonth.getDate();
+
+            for (let i = 0; i < prevMonthDays; i++) {
+                const dayNumber = daysInPrevMonth - prevMonthDays + i + 1;
+                createDayElement(dayNumber, false, `${year}-${String(month - 1).padStart(2, '0')}-${String(dayNumber).padStart(2, '0')}`);
+            }
+
+            // 添加当月的天数
+            for (let i = 1; i <= daysInMonth; i++) {
+                const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const dayData = window.scheduleData[dateStr];
+                const dayStaff = dayData ? dayData.staff : null;
+                createDayElement(i, true, dateStr, dayStaff);
+            }
+
+            // 添加下个月的开始几天
+            const totalCells = Math.ceil((prevMonthDays + daysInMonth) / 7) * 7;
+            const nextMonthDays = totalCells - (prevMonthDays + daysInMonth);
+
+            for (let i = 1; i <= nextMonthDays; i++) {
+                createDayElement(i, false, `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
+            }
+        }
+
+        // 创建日期元素
+        function createDayElement(number, isCurrentMonth, date, staff = null) {
+            const dayElement = document.createElement('div');
+            dayElement.className = `day ${isCurrentMonth ? 'current-month' : 'other-month'} ${selectedDate === date ? 'selected' : ''}`;
+            
+            const dayNumber = document.createElement('span');
+            dayNumber.className = 'day-number';
+            dayNumber.textContent = number;
+            dayElement.appendChild(dayNumber);
+            
+            if (staff && isCurrentMonth) {
+                const staffElement = document.createElement('div');
+                staffElement.className = 'staff-name';
+                staffElement.textContent = staff;
+                dayElement.appendChild(staffElement);
+                
+                dayElement.onclick = function() {
+                    handleDayClick(date, staff);
+                };
+                dayElement.style.cursor = 'pointer';
+            }
+            
+            document.getElementById('calendarDays').appendChild(dayElement);
+        }
+
+        // 点击日期处理
+        function handleDayClick(date, staff) {
+            selectedDate = date;
+            updateCalendar();
+            
+            const notesPanel = document.getElementById('notesPanel');
+            notesPanel.style.display = 'block';
+            
+            document.getElementById('notesDate').textContent = date;
+            document.getElementById('notesStaff').textContent = `值班人: ${staff}`;
+            
+            const notice = window.scheduleData[date]?.notes || '暂无注意事项';
+            document.getElementById('noticeContent').textContent = notice;
+        }
+
+        // 切换月份
+        function changeMonth(offset) {
+            currentMonth += offset;
+            if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            } else if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            }
+            selectedDate = null;
+            document.getElementById('notesPanel').style.display = 'none';
+            updateCalendar();
+        }
+    </script>
+</body>
+</html>
